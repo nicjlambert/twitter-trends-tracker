@@ -11,7 +11,7 @@
 
 	// Use 'postCreateCommand' to run commands after the container is created.
 	// "postCreateCommand": "pip3 install --user -r requirements.txt",
-	"postCreateCommand": "pip3 install flask tweepy re threading"
+	"postCreateCommand": "pip3 install flask tweepy summarizer"
 	
 	// Configure tool-specific properties.
 	// "customizations": {},
