@@ -1,58 +1,53 @@
-from flask import Flask
+from flask import Flask, jsonify, render_template
 import tweepy
-import re
-from summarizer import Summarizer
-import threading
+import os
 
 app = Flask(__name__)
 
-# Replace with your own Twitter API keys and access tokens
-API_KEY = 'your_api_key'
-API_SECRET = 'your_api_secret'
-ACCESS_TOKEN = 'your_access_token'
-ACCESS_TOKEN_SECRET = 'your_access_token_secret'
+def authenticate_twitter_app():
 
-# Authenticate with Twitter API
-auth = tweepy.OAuthHandler(API_KEY, API_SECRET)
-auth.set_access_token(ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
-api = tweepy.API(auth, wait_on_rate_limit=True, wait_on_rate_limit_notify=True)
+    consumer_key = os.getenv('TWITTER_CONSUMER_KEY')
+    consumer_secret = os.getenv('TWITTER_CONSUMER_SECRET')
+    access_token = os.getenv('TWITTER_ACCESS_TOKEN')
+    access_token_secret = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
 
-# Function to clean text
-def clean_text(text):
-    text = re.sub(r"http\S+|www\S+|https\S+", "", text, flags=re.MULTILINE)
-    text = re.sub(r'\@\w+|\#', "", text)
-    text = text.strip().lower()
-    return text
+    auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
+    auth.set_access_token(access_token, access_token_secret)
 
-# Function to fetch trending topics and summarize them
-def summarize_trends():
-    summarizer = Summarizer()
-    trending = api.get_place_trends(id=1)  # Fetch trending topics worldwide (WOEID 1)
-    trends = [trend['name'] for trend in trending[0]['trends']]
+    api = tweepy.API(auth)
+    return api
 
-    for trend in trends:
-        print(f"Summarizing trend: {trend}")
-        tweets = []
-        try:
-            for tweet in tweepy.Cursor(api.search_tweets, q=trend, lang="en", tweet_mode="extended").items(100):
-                tweets.append(clean_text(tweet.full_text))
-        except tweepy.TweepError as e:
-            print(f"Error fetching tweets for trend {trend}: {e}")
+@app.route('/trends', methods=['GET'])
+def get_trends():
+    api = authenticate_twitter_app()
 
-        # Summarize the tweets and post it
-        if tweets:
-            summarized_text = summarizer(" ".join(tweets), max_length=50)
-            if not summarized_text:
-                summarized_text = f"Couldn't summarize {trend}. Check the trend for more information."
-            else:
-                summarized_text = summarized_text[:280]
-            api.update_status(f"Summary of {trend}: {summarized_text}")
+    # Try to authenticate
+    try:
+        api.verify_credentials()
+    except Exception as e:
+        return jsonify({"error": "Authentication failed!", "details": str(e)})
 
-@app.route('/start', methods=['GET'])
-def start():
-    thread = threading.Thread(target=summarize_trends)
-    thread.start()
-    return "Started summarizing trends!"
+    # Get the trending tweets in Canberra
+    try:
+        trends = api.get_place_trends("1100968")
+    except Exception as e:
+        return jsonify({"error": "Failed to fetch trends!", "details": str(e)})
+    
+    # Return the trending tweets
+    trending_tweets = [{'name': trend['name'], 'url': trend['url'], 'tweet_volume': trend['tweet_volume'] or 0} for trend in trends[0]['trends']]
+    return jsonify({"trending_tweets": trending_tweets})
 
-if __name__ == "__main__":
-    app.run(port=5000)
+@app.route('/trends_chart', methods=['GET'])
+def trends_chart():
+    api = authenticate_twitter_app()
+    trends = api.get_place_trends("1100968")
+
+    # Prepare data for the chart
+    data = [{'name': trend['name'], 'volume': trend['tweet_volume'] or 0} for trend in trends[0]['trends']]  # Some tweet volumes might be None, so replace with 0
+
+    # Render the template with the data
+    return render_template('trends_chart.html', data=data)
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
