@@ -107,8 +107,11 @@
                 .attr("class", "y axis")
                 .call(yAxis);
     
+            // Exclude bars with tweet volume = 0
+            const filteredTweets = trending_tweets.filter(d => d.tweet_volume > 0);
+            
             svg.selectAll(".bar")
-                .data(trending_tweets)
+                .data(filteredTweets)
                 .enter().append("rect")
                 .attr("class", "bar")
                 .attr("y", d => y(d.name))
@@ -122,7 +125,7 @@
                 .attr("width", d => x(d.tweet_volume));
 
             svg.selectAll(".text")  
-                .data(trending_tweets)
+                .data(filteredTweets)
                 .enter()
                 .append("text")
                 .attr("class","label")
@@ -132,6 +135,13 @@
                 .duration(1000)
                 .delay((d, i) => i * 100)
                 .text(function(d) { return d.tweet_volume; });
+
+            svg.append("text")
+                .attr("class", "footnote")
+                .attr("x", 0)
+                .attr("y", height + margin.bottom - 5) // adjust this as needed
+                .text("* Trends with a tweet volume of 0 are not displayed in the chart.");
+
 
         }
     </script>
