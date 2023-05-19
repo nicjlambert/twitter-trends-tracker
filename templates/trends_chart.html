@@ -24,58 +24,115 @@
             stroke: #000;
             shape-rendering: crispEdges;
         }
+
+        /* Loading animation styles */
+        .loading-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(0, 0, 0, 0.3);
+            border-radius: 50%;
+            border-top-color: rgba(0, 0, 0, 0.8);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
 <body>
-    <script>
-        // Fetch trending tweets data from the Flask endpoint
-        fetch('/trends')
-            .then(response => response.json())
-            .then(data => {
-                renderTrendsChart(data.trending_tweets);
-            });
+    <div class="loading-container">
+        <div class="loading-spinner"></div>
+    </div>
+    
+    <div id="chart-container" class="hidden"></div>
 
+    <script>
+        const loadingContainer = document.querySelector('.loading-container');
+        const chartContainer = document.querySelector('#chart-container');
+    
+        d3.json('/trends').then(data => {
+            loadingContainer.classList.add('hidden');
+            chartContainer.classList.remove('hidden');
+            renderTrendsChart(data.trending_tweets);
+        });
+    
         function renderTrendsChart(trending_tweets) {
-            const margin = { top: 20, right: 20, bottom: 30, left: 40 };
+            trending_tweets.sort((a, b) => b.tweet_volume - a.tweet_volume);
+    
+            const margin = { top: 20, right: 20, bottom: 30, left: 200 };
             const width = 960 - margin.left - margin.right;
             const height = 500 - margin.top - margin.bottom;
-
-            const x = d3.scaleBand()
-                .rangeRound([0, width])
-                .padding(0.1);
-
-            const y = d3.scaleLinear()
-                .range([height, 0]);
-
-            const xAxis = d3.axisBottom(x);
-            const yAxis = d3.axisLeft(y).ticks(10);
-
-            const svg = d3.select("body").append("svg")
+    
+            const x = d3.scaleLinear().range([0, width]);
+            const y = d3.scaleBand().range([height, 0]).padding(0.1);
+    
+            const xAxis = d3.axisBottom(x).ticks(10);
+            const yAxis = d3.axisLeft(y);
+    
+            // Add color scale
+            const colorScale = d3.scaleLinear()
+                .domain([0, d3.max(trending_tweets, d => d.tweet_volume)])
+                .range(['green', 'red']);
+    
+            const svg = d3.select(chartContainer).append("svg")
                 .attr("width", width + margin.left + margin.right)
                 .attr("height", height + margin.top + margin.bottom)
                 .append("g")
                 .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-
-            x.domain(trending_tweets.map(d => d.name));
-            y.domain([0, d3.max(trending_tweets, d => d.tweet_volume)]);
-
+    
+            x.domain([0, d3.max(trending_tweets, d => d.tweet_volume)]);
+            y.domain(trending_tweets.map(d => d.name));
+    
             svg.append("g")
                 .attr("class", "x axis")
                 .attr("transform", "translate(0," + height + ")")
                 .call(xAxis);
-
+    
             svg.append("g")
                 .attr("class", "y axis")
                 .call(yAxis);
-
+    
             svg.selectAll(".bar")
                 .data(trending_tweets)
                 .enter().append("rect")
                 .attr("class", "bar")
-                .attr("x", d => x(d.name))
-                .attr("width", x.bandwidth())
-                .attr("y", d => y(d.tweet_volume))
-                .attr("height", d => height - y(d.tweet_volume));
+                .attr("y", d => y(d.name))
+                .attr("height", y.bandwidth())
+                .attr("x", 0)
+                .attr("width", 0)
+                .attr("fill", d => colorScale(d.tweet_volume)) // Set color based on the colorScale
+                .transition()
+                .duration(1000)
+                .delay((d, i) => i * 100)
+                .attr("width", d => x(d.tweet_volume));
+
+            svg.selectAll(".text")  
+                .data(trending_tweets)
+                .enter()
+                .append("text")
+                .attr("class","label")
+                .attr("x", (function(d) { return x(d.tweet_volume); }  ))
+                .attr("y", function(d) { return y(d.name) + y.bandwidth() / 2 + 4; })
+                .transition()
+                .duration(1000)
+                .delay((d, i) => i * 100)
+                .text(function(d) { return d.tweet_volume; });
+
         }
     </script>
 </body>

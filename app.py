@@ -29,7 +29,7 @@ def get_trends():
 
     # Get the trending tweets in Canberra
     try:
-        trends = api.get_place_trends("1100968")
+        trends = api.get_place_trends("1100661")
     except Exception as e:
         return jsonify({"error": "Failed to fetch trends!", "details": str(e)})
     
@@ -40,7 +40,7 @@ def get_trends():
 @app.route('/trends_chart', methods=['GET'])
 def trends_chart():
     api = authenticate_twitter_app()
-    trends = api.get_place_trends("1100968")
+    trends = api.get_place_trends("1100661")
 
     # Prepare data for the chart
     data = [{'name': trend['name'], 'volume': trend['tweet_volume'] or 0} for trend in trends[0]['trends']]  # Some tweet volumes might be None, so replace with 0
